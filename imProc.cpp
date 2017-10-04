@@ -131,16 +131,17 @@ void zoomInOut(Mat &srcImg, Mat &resImg)
 
 					if(fmm == 0) continue;
 
-					uchar su  = srcImg.at<uchar>(fmm - 1, j);
-					uchar sa  = srcImg.at<uchar>(fmm, j);
-					uchar ssu = srcImg.at<uchar>(fmm + 1, j);
-					uchar ssa = srcImg.at<uchar>(fmm + 2, j);
+					float su  = srcImg.at<uchar>(fmm - 1, j);
+					float sa  = srcImg.at<uchar>(fmm, j);
+					float ssu = srcImg.at<uchar>(fmm + 1, j);
+					float ssa = srcImg.at<uchar>(fmm + 2, j);
 
 					float fVall = -b *(1-b) * (1-b) * su +
 								  (1 - 2*b*b + b*b*b) * sa +
 								  b * (1+b-b*b) * ssu -
 								  (b*b *(1-b) * ssa);
 
+					fVall = floor(fVall);
 
 					F.at<uchar>(i, j) = (uchar)fVall;
 				}
@@ -158,10 +159,10 @@ void zoomInOut(Mat &srcImg, Mat &resImg)
 
 					if(nn == 0) continue;
 
-					uchar su  = F.at<uchar>(m , nn -1);
-					uchar sa  = F.at<uchar>(m, nn);
-					uchar ssu = F.at<uchar>(m, nn + 1);
-					uchar ssa = F.at<uchar>(m, nn + 2);
+					float su  = F.at<uchar>(m , nn -1);
+					float sa  = F.at<uchar>(m, nn);
+					float ssu = F.at<uchar>(m, nn + 1);
+					float ssa = F.at<uchar>(m, nn + 2);
 
 					float vall = (-a * (1-a) * (1-a)) * su  +
 							     (1- 2*a*a + a*a*a)   * sa  +
@@ -169,6 +170,7 @@ void zoomInOut(Mat &srcImg, Mat &resImg)
 							     (a*a * (1-a))        * ssa;
 
 
+					vall = floor(vall);
 					resImg.at<uchar>(m, n) = (uchar) vall;
 				}
 			}
@@ -181,30 +183,86 @@ void zoomInOut(Mat &srcImg, Mat &resImg)
 // Affine transforms
 void inverseAffine(Mat &srcImg, Mat &resImg)
 {
-	float t[3][3] = {{0.866f, 0.5f  , 0.0f},
+	float t1[3][3] = {{0.866f, 0.5f  , 0.0f},
 					{-0.5f   , 0.866f, 0.0f},
 					{0.0f   , 0.0f  , 1.0f}};
 
-	float tttt[3][3] = {{2.0f, 0.0f  , 0.0f},
+	float t2[3][3] = {{2.0f, 0.0f  , 0.0f},
 					 {0.0f   , 2.0f, 0.0f},
 					 {0.0f   , 0.0f  , 1.0f}};
 
+	float t[3][3] = {{1.0f, 0.0f  , 0.0f},
+					   {0.0f   , 1.0f, 0.0f},
+					   {15.0f   , 20.0f  , 1.0f}};
+
+	float t3[3][3] = {{1.0f, 0.5f  , 0.0f},
+					 {0.0f   , 1.0f, 0.0f},
+					 {0.0f   , 0.0f  , 1.0f}};
+
+
 	Mat T(3,3, CV_32FC1, t);
 
-	resImg.create(srcImg.rows,srcImg.cols, CV_8U);
+
+
+	resImg.create(srcImg.rows+50 ,srcImg.cols+50, CV_8U);
 
 	for (int i = 0; i < resImg.rows; ++i)
 	{
 		for (int j = 0; j < resImg.cols; ++j)
 		{
-			float out[1][3] = {i, j, 1};
+			float out[1][3] = {i  , j , 1};
 			Mat pos(1,3,CV_32F, out);
 
 			Mat res = pos * T.inv();
 
-			int row = res.at<float>(0,0);
-			int col = res.at<float>(0,1);
-			resImg.at<uchar>(i, j) = srcImg.at<uchar>(row, col);
+			int row = round(res.at<float>(0,0));
+			int col = round(res.at<float>(0,1));
+
+			if(row < 0 || col < 0 || row > srcImg.rows || col > srcImg.cols)
+			{
+				resImg.at<uchar>(i, j) = 0;
+			}
+			else
+			{
+				resImg.at<uchar>(i, j) = srcImg.at<uchar>(row, col);
+			}
 		}
 	}
 }
+
+void imageRegistration(Mat &srcImg, Mat &resImg)
+{
+	float shear[3][3] = {{1.0f, 0.5f  , 0.0f},
+					    {0.0f   , 1.0f, 0.0f},
+					    {0.0f   , 0.0f  , 1.0f}};
+
+	Mat T(3,3, CV_32FC1, shear);
+
+
+
+	resImg.create(srcImg.rows * 2 ,srcImg.cols * 2, CV_8U);
+
+	for (int i = 0; i < resImg.rows; ++i)
+	{
+		for (int j = 0; j < resImg.cols; ++j)
+		{
+			float out[1][3] = {i  , j , 1};
+			Mat pos(1,3,CV_32F, out);
+
+			Mat res = pos * T.inv();
+
+			int row = round(res.at<float>(0,0));
+			int col = round(res.at<float>(0,1));
+
+			if(row < 0 || col < 0 || row > srcImg.rows || col > srcImg.cols)
+			{
+				resImg.at<uchar>(i, j) = 0;
+			}
+			else
+			{
+				resImg.at<uchar>(i, j) = srcImg.at<uchar>(row, col);
+			}
+		}
+	}
+}
+
